@@ -1,0 +1,20 @@
+# Production line 1 - bottling
+line:
+  opcua_url: opc.tcp://localhost:4840/kaizen/
+  namespace: http://kaizen-matrix.example/line1
+  base_topic: kaizen/plant1/bottling/line1
+
+# start = true value at the beginning
+# noise = how much the sensor jumps randomly
+# drift = how much the true value changes every second (wear)
+machines:
+  Pump:
+    Pressure:  {unit: bar,       start: 5.0,  noise: 0.1,  drift: 0.0}
+    Flow:      {unit: l_per_min, start: 40.0, noise: 0.8,  drift: 0.0}
+    Vibration: {unit: mm_per_s,  start: 2.0,  noise: 0.05, drift: 0.002}
+  Filler:
+    Temperature: {unit: degC,            start: 70.0,  noise: 0.3, drift: 0.02}
+    Speed:       {unit: bottles_per_min, start: 120.0, noise: 3.0, drift: 0.0}
+  Capper:
+    Torque: {unit: Nm,              start: 2.5,   noise: 0.05, drift: 0.0}
+    Speed:  {unit: bottles_per_min, start: 120.0, noise: 3.0,  drift: 0.0}

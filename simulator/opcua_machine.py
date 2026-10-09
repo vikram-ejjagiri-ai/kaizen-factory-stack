@@ -1,43 +1,51 @@
 import asyncio
 import random
+from pathlib import Path
 
+import yaml
 from asyncua import Server
+
+# Find config/line1.yaml, no matter which folder we start the program from
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "line1.yaml"
+CONFIG = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
 
 
 async def main():
-    # --- 1. Create the OPC UA server (our fake PLC) ---
     server = Server()
     await server.init()
-
-    # The "phone number" where other programs can call this machine.
-    # 4840 is the standard OPC UA port, like 1883 is for MQTT.
-    server.set_endpoint("opc.tcp://localhost:4840/kaizen/")
+    server.set_endpoint(CONFIG["line"]["opcua_url"])
     server.set_server_name("Kaizen Line 1 Simulator")
+    idx = await server.register_namespace(CONFIG["line"]["namespace"])
 
-    # A namespace is like a family name, so our data
-    # doesn't get mixed up with other companies' data.
-    idx = await server.register_namespace("http://kaizen-matrix.example/line1")
+    # Build one folder per machine, with its sensors inside
+    sensors = []
+    for machine_name, machine_sensors in CONFIG["machines"].items():
+        machine = await server.nodes.objects.add_object(idx, machine_name)
+        await machine.add_variable(idx, "Status", "Running")
 
-    # --- 2. Build the folder structure ---
-    filler = await server.nodes.objects.add_object(idx, "Filler")
-    temperature = await filler.add_variable(idx, "Temperature", 70.0)
-    speed = await filler.add_variable(idx, "Speed", 120.0)
-    await filler.add_variable(idx, "Status", "Running")
+        for sensor_name, settings in machine_sensors.items():
+            node = await machine.add_variable(idx, sensor_name, float(settings["start"]))
+            sensors.append({
+                "label": f"{machine_name}.{sensor_name}",
+                "node": node,
+                "true_value": float(settings["start"]),
+                "noise": settings["noise"],
+                "drift": settings["drift"],
+            })
 
-    print("OPC UA machine running at opc.tcp://localhost:4840/kaizen/")
+    print(f"Simulating {len(CONFIG['machines'])} machines, {len(sensors)} sensors.")
     print("Press Ctrl+C to stop.")
 
-    # --- 3. Run the machine: update the values every second ---
     async with server:
-        temp = 70.0
         while True:
-            temp += random.uniform(-0.3, 0.35)        # slow warming, like wear
-            spd = 120 + random.uniform(-3, 3)          # speed wobbles around 120
+            readings = []
+            for s in sensors:
+                s["true_value"] += s["drift"]                               # slow wear
+                reading = s["true_value"] + random.gauss(0, s["noise"])     # + sensor noise
+                await s["node"].write_value(round(reading, 3))
+                readings.append(f"{s['label']}={reading:.2f}")
 
-            await temperature.write_value(round(temp, 2))
-            await speed.write_value(round(spd, 1))
-
-            print(f"Temperature: {temp:.2f} °C | Speed: {spd:.1f} bottles/min")
+            print(" | ".join(readings))
             await asyncio.sleep(1)
 
 
@@ -45,4 +53,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Machine stopped.")
+        print("Simulator stopped.")
