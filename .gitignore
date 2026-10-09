@@ -1,0 +1,11 @@
+   # Python
+   .venv/
+   __pycache__/
+   *.pyc
+
+   # Secrets (passwords, API keys) - never upload these!
+   .env
+
+   # Large data and database files
+   data/
+   *.db
